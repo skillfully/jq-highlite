@@ -1,5 +1,5 @@
 /**
- * 
+ *
  */
 
 (function(jQuery, $) {
@@ -7,16 +7,17 @@
   jQuery.log = function(msg) {
     console.log(msg);
   };
-  
+
   jQuery.fn.highlite = function(options) {
-    options = $.extend(true, {}, jQuery.fn.highlite.defaults, options);
-    
-    var _checkCookieFn = function() {
+    options = $.extend(true, {}, jQuery.fn.highlite.defaults, options.regexpMods);
+
+    var _checkCookieFn = function(index) {
+$.log('checkCookieFn()');
       var cookie = document.cookie,
-          regexp = new RegExp(options.cparam);
+          regexp = new RegExp(options.cname + index, options.r);
       if (!cookie.match(regexp) && navigator.cookieEnabled) {
       // cookie doesn't exists, so we set an empty one
-        _writeCookieFn();
+        _writeCookieFn(index);
         return true;
       } else if (cookie.match(regexp) && navigator.cookieEnabled) {
       // cookie exists
@@ -26,62 +27,93 @@
         return false;
       }
     };
-    var _readCookieFn = function() {
-      var regexpStr = options.cparam + '="(\\w+)"',
-          regexp = new RegExp(regexpStr),
+    var _readCookieFn = function(index) {
+$.log('readCookieFn()');
+      var regexpStr = options.cname + index + '="(.+)"',
+          regexp = new RegExp(regexpStr, options.regexpMods),
           cookies,
-          cvalue;
-      if ( _checkCookieFn() ) {
+          cvalue,
+          tmp;
+      if ( _checkCookieFn(index) ) {
         cookies = document.cookie;
-        cvalue = regexp.exec(cookies);
-        //cvalue = RegExp.$1;
-        $.log(cookies + ' ' + RegExp.$1);
-        return RegExp.$1
+        cvalue = ((tmp = regexp.exec(cookies)) == null) ? '' : tmp[1];
+$.log('cookies=[' + cookies + ']');
+$.log('regExpResult=[' + cvalue +']');
+        return cvalue;
       } else {
         return false;
       }
     };
-    var _writeCookieFn = function(txt) {
+    var _writeCookieFn = function(index, txt) {
+$.log('writeCookieFn()');
       var expires = new Date(),
           txt = typeof txt !== 'undefined' ? txt : '';
     // set expiration time
       expires.setMinutes(expires.getMinutes() + options.expTime);
     // write cookie if it's possible
       if (navigator.cookieEnabled) {
-        document.cookie = options.cparam + '="' + txt + '"; expires=' + expires.toGMTString();
+        document.cookie = options.cname + index + '="' + txt + '"; expires=' + expires.toGMTString();
         return true;
       } else {
         return false;
       }
     };
     var _formSubmitFn = function(event) {
-      var txt = $(options.searchTxt).val();
-      _writeCookieFn(txt);
+$.log('formSubmitFn()');
+    // get text from input field ...
+      var index = $(event.target).data('index'),
+          txt = $(options.searchTxt[index]).val();
+    // stop default action, if there is no flag set
+      if (!$(event.target).data('send')) {
+        event.preventDefault();
+      // ... and write it to the cookie
+        _writeCookieFn(index, txt);
+      // set the send flag and ...
+        $(event.target).data('send', true);
+      // submit form
+        $(options.searchForm[index]).submit();
+      }
     };
-    
+    var _highliteFn = function(index) {
+$.log('highliteFn()');
+      var searchArr = _readCookieFn(index).split(' '),
+          html = $(options.resultSel[index]).html(),
+          idx = index;
+      $.each(searchArr, function(key, value) {
+        if (value != '') {
+          var regex = new RegExp('(' + value + '+)', options.regexpMods),
+              results = html.match(regex),
+              replacement = '<span style="background-color:' + options.color + '">$1</span>';
+          if (results != null && results[0] != '') {
+$.log('results:' + results[0]);
+            html = html.replace(regex, replacement);
+          }
+        }
+      });
+      $(options.resultSel[index])
+        .html(html);
+    };
+
     return this.each(function(index) {
       $(this)
-        .find(options.searchTxt[index])
-          .keypress(function() {
-            
-          })
-        .end()
         .find(options.searchForm[index])
+          .data('index', index)
           .submit(function(event) {
             _formSubmitFn(event);
           });
-      _readCookieFn();
+      _highliteFn(index);
       return $(this);
     });
   };
-  
+
   jQuery.fn.highlite.defaults = {
     color: '#ff0',
-    cparam: 'lsearch',
-    searchTxt: ["#search input[type='text']"],
-    searchForm:["form"],
-    resultSel: ["#results"],
-    expTime: 5
+    cname: 'lsearch',
+    searchTxt: ["#glossary form[name='glossary_search'] #search_text"],
+    searchForm:["#glossary form[name='glossary_search']"],
+    resultSel: ["#glossary dl"],
+    expTime: 5,
+    regexpMods: 'gim'
   };
 })(jQuery, jQuery);
 
